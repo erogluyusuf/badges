@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, type CSSProperties } from 'vue';
 import html2canvas from 'html2canvas';
 
 // Types
 interface GithubRepo {
   id: number;
   name: string;
-  description: string;
+  description: string | null;
   html_url: string;
   stargazers_count: number;
   forks_count: number;
-  language: string;
+  language: string | null;
   license: { spdx_id: string } | null;
   default_branch?: string;
 }
@@ -18,6 +18,7 @@ interface GithubRepo {
 const username = ref('');
 const repos = ref<GithubRepo[]>([]);
 const selectedRepo = ref<GithubRepo | null>(null);
+const selectedRepoIndex = ref<number | ''>('');
 const loading = ref(false);
 const downloading = ref(false);
 const copied = ref(false);
@@ -32,7 +33,7 @@ const selectedRepoImage = ref('');
 
 const cardRef = ref<HTMLElement | null>(null);
 
-const imgFit = ref<any>('cover');
+const imgFit = ref<'cover' | 'contain' | 'fill' | 'none' | 'scale-down'>('cover');
 const imgScale = ref(1);
 const imgPosX = ref(50);
 const imgPosY = ref(50);
@@ -87,6 +88,7 @@ const getRepos = async () => {
   if (!username.value) return;
   loading.value = true;
   selectedRepo.value = null;
+  selectedRepoIndex.value = '';
   customBadgesList.value = [];
   try {
     const res = await fetch(`https://api.github.com/users/${username.value}/repos?sort=updated&per_page=100`);
@@ -144,23 +146,36 @@ const fetchRepoImages = async (repo: GithubRepo) => {
   }
 };
 
-const handleRepoSelect = (event: Event) => {
-  const target = event.target as HTMLSelectElement;
-  if (target && target.value !== "") {
-    selectRepo(repos.value[parseInt(target.value)]);
+const handleRepoSelect = () => {
+  if (selectedRepoIndex.value !== '') {
+    const repo = repos.value[selectedRepoIndex.value as number];
+    if (repo) {
+      selectRepo(repo);
+    }
   }
 };
 
+// Extracted image styling logic with strict CSSProperties typing
+const coverImageStyle = computed<CSSProperties>(() => ({
+  width: `${imgScale.value * 100}%`,
+  height: `${imgScale.value * 100}%`,
+  maxWidth: 'none',
+  objectFit: imgFit.value,
+  objectPosition: `${imgPosX.value}% ${imgPosY.value}%`
+}));
+
 const finalImageUrl = computed(() => {
-  if (imageSource.value === 'opengraph' && selectedRepo.value) return `https://opengraph.githubassets.com/1/${username.value}/${selectedRepo.value.name}`;
+  const repo = selectedRepo.value;
+  if (imageSource.value === 'opengraph' && repo) return `https://opengraph.githubassets.com/1/${username.value}/${repo.name}`;
   if (imageSource.value === 'avatar') return avatarUrl.value;
   if (imageSource.value === 'repo') return selectedRepoImage.value || 'https://via.placeholder.com/400x200?text=No+Image+Found';
   return customImageUrl.value || 'https://via.placeholder.com/400x200?text=Enter+URL';
 });
 
 const qrCodeUrl = computed(() => {
-  if (!selectedRepo.value) return '';
-  return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(selectedRepo.value.html_url)}&margin=0`;
+  const repo = selectedRepo.value;
+  if (!repo) return '';
+  return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(repo.html_url)}&margin=0`;
 });
 
 const addCustomBadge = () => {
@@ -179,10 +194,10 @@ const removeCustomBadge = (id: number) => {
 };
 
 const activeBadges = computed(() => {
-  if (!selectedRepo.value) return [];
   const r = selectedRepo.value;
+  if (!r) return [];
   const u = username.value;
-  let badges = [];
+  let badges: string[] = [];
   if (config.value.showPRsWelcome) badges.push(`https://img.shields.io/badge/PRs-Welcome-brightgreen?style=flat-square&logo=github`);
   if (config.value.showMaintained) badges.push(`https://img.shields.io/badge/Maintained%3F-yes-green?style=flat-square`);
   if (config.value.showWIP) badges.push(`https://img.shields.io/badge/Status-WIP-orange?style=flat-square`);
@@ -198,8 +213,9 @@ const activeBadges = computed(() => {
 });
 
 const outputCode = computed(() => {
-  if (!selectedRepo.value) return '';
-  return `\n<div align="center">\n  <a href="${selectedRepo.value.html_url}">\n    <img src="./${selectedRepo.value.name}-card.png" alt="${selectedRepo.value.name} Card" width="${config.value.cardWidth}">\n  </a>\n</div>`;
+  const repo = selectedRepo.value;
+  if (!repo) return '';
+  return `\n<div align="center">\n  <a href="${repo.html_url}">\n    <img src="./${repo.name}-card.png" alt="${repo.name} Card" width="${config.value.cardWidth}">\n  </a>\n</div>`;
 });
 
 const copy = () => {
@@ -238,8 +254,8 @@ const downloadImage = async () => {
             <button @click="getRepos" class="bg-blue-600 px-4 rounded-xl font-bold text-sm hover:bg-blue-500 transition-all">Fetch</button>
           </div>
           
-          <select v-if="repos.length > 0" @change="handleRepoSelect" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-blue-500 text-sm cursor-pointer appearance-none">
-            <option value="" disabled selected>Select a repository...</option>
+          <select v-if="repos.length > 0" v-model="selectedRepoIndex" @change="handleRepoSelect" class="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-blue-500 text-sm cursor-pointer appearance-none">
+            <option value="" disabled>Select a repository...</option>
             <option v-for="(repo, index) in repos" :key="repo.id" :value="index">{{ repo.name }}</option>
           </select>
         </div>
@@ -369,12 +385,35 @@ const downloadImage = async () => {
           <div>
             <label class="block text-xs text-neutral-400 mb-2 font-bold uppercase tracking-tighter">Display Statistics</label>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 text-[10px]">
-              <label v-for="(val, key) in {
-                showPRsWelcome: 'PRs Welcome', showMaintained: 'Maintained', showWIP: 'In Progress', 
-                showLang: 'Language', showStars: 'Stars', showForks: 'Forks', 
-                showIssues: 'Issues', showLicense: 'License', showRepoSize: 'Size', showLastCommit: 'Last Update'
-              }" :key="key" class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
-                <input type="checkbox" v-model="(config as any)[key]" class="accent-blue-500"> {{ val }}
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showPRsWelcome" class="accent-blue-500"> PRs Welcome
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showMaintained" class="accent-blue-500"> Maintained
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showWIP" class="accent-blue-500"> In Progress
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showLang" class="accent-blue-500"> Language
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showStars" class="accent-blue-500"> Stars
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showForks" class="accent-blue-500"> Forks
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showIssues" class="accent-blue-500"> Issues
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showLicense" class="accent-blue-500"> License
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showRepoSize" class="accent-blue-500"> Size
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer p-2 bg-neutral-950 rounded border border-neutral-800 hover:border-blue-500 transition-colors">
+                <input type="checkbox" v-model="config.showLastCommit" class="accent-blue-500"> Last Update
               </label>
               <label class="flex items-center gap-2 cursor-pointer p-2 bg-blue-900/20 rounded border border-blue-800 hover:border-blue-500 transition-colors md:col-span-2">
                 <input type="checkbox" v-model="config.showQRCode" class="accent-blue-500"> <span class="font-bold text-blue-400">Embed QR Code</span>
@@ -397,7 +436,7 @@ const downloadImage = async () => {
           <div v-if="selectedRepo" class="mt-14 w-full overflow-x-auto flex items-start justify-center p-4">
             <div ref="cardRef" :style="{ backgroundColor: config.cardBg, width: `${config.cardWidth}px`, padding: `${config.cardPadding}px` }" class="rounded-2xl shadow-2xl text-center relative z-10 border border-black/5 flex-shrink-0 flex flex-col transition-all">
               <div :style="{ backgroundColor: config.imageBg }" class="p-0 rounded-xl mb-5 border border-black/5 flex items-center justify-center overflow-hidden h-48 relative">
-                <img :src="finalImageUrl" class="transition-all duration-75 rounded-xl" :style="{ width: (imgScale * 100) + '%', height: (imgScale * 100) + '%', maxWidth: 'none', objectFit: imgFit, objectPosition: `${imgPosX}% ${imgPosY}%` }" alt="Cover" crossorigin="anonymous" />
+                <img :src="finalImageUrl" class="transition-all duration-75 rounded-xl" :style="coverImageStyle" alt="Cover" crossorigin="anonymous" />
               </div>
               <h3 :style="{ color: config.cardText }" class="text-2xl font-extrabold mb-2 tracking-tight">{{ config.title }}</h3>
               <p :style="{ color: config.cardText, opacity: 0.8 }" class="text-sm mb-5 leading-relaxed px-2 flex-1">{{ config.description }}</p>

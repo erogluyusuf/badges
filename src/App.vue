@@ -135,7 +135,9 @@ const fetchRepoImages = async (repo: GithubRepo) => {
         path: img.path,
         url: `https://raw.githubusercontent.com/${username.value}/${repo.name}/${branch}/${img.path}`
       }));
-      if (repoImages.value.length > 0) {
+      
+      // ÇÖZÜM BURADA: TS'i rahatlatmak için dizinin 0. elemanı gerçekten var mı diye if ile güvene aldık
+      if (repoImages.value.length > 0 && repoImages.value[0]) {
         selectedRepoImage.value = repoImages.value[0].url;
       }
     }
@@ -469,4 +471,4 @@ const downloadImage = async () => {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
 .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-</style> 
+</style>

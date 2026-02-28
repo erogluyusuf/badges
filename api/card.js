@@ -4,7 +4,7 @@ export default async function handler(req, res) {
         bg, titleColor, textColor,
         w = 450, h, 
         img, qr, customBadges,
-        animate // YENİ: Animasyon Parametresi!
+        animate 
     } = req.query;
 
     if (!username || !repo) {
@@ -88,7 +88,6 @@ export default async function handler(req, res) {
         const maxLineWidth = cardWidth - rightMargin;
         let badgesHtml = '';
         
-        // YENİ: Animasyon sırası (Stagger effect) için sayaç
         let badgeIndex = 0; 
         const isAnimated = animate === 'true';
 
@@ -100,14 +99,16 @@ export default async function handler(req, res) {
             const badgeBg = isDark ? '#161b22' : '#f3f4f6';
             const badgeBorder = isDark ? '#30363d' : '#d1d5db';
             
-            // Animasyon gecikmesini hesapla (0.4s'den başlar, her rozet için 0.1s artar)
             const animStyle = isAnimated ? `style="opacity: 0; animation: slideUp 0.6s ease-out forwards; animation-delay: ${0.4 + (badgeIndex * 0.1)}s;"` : '';
             
+            // ÇÖZÜM BURADA: Dış <g> konumu tutuyor, iç <g> animasyonu yapıyor!
             const b = `
-            <g transform="translate(${currentX}, ${currentY})" ${animStyle}>
-                <rect width="${width}" height="22" rx="4" fill="${badgeBg}" stroke="${badgeBorder}"/>
-                <circle cx="12" cy="11" r="4" fill="${dotColor}"/>
-                <text x="22" y="15" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="11" font-weight="600" fill="${pColor}">${safeText}</text>
+            <g transform="translate(${currentX}, ${currentY})">
+                <g ${animStyle}>
+                    <rect width="${width}" height="22" rx="4" fill="${badgeBg}" stroke="${badgeBorder}"/>
+                    <circle cx="12" cy="11" r="4" fill="${dotColor}"/>
+                    <text x="22" y="15" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="11" font-weight="600" fill="${pColor}">${safeText}</text>
+                </g>
             </g>`;
             currentX += width + 10;
             badgesHtml += b;
@@ -121,7 +122,12 @@ export default async function handler(req, res) {
         externalBadges.forEach(b => {
             if (currentX + b.width > maxLineWidth) { currentX = 24; currentY += 28; }
             const animStyle = isAnimated ? `style="opacity: 0; animation: slideUp 0.6s ease-out forwards; animation-delay: ${0.4 + (badgeIndex * 0.1)}s;"` : '';
-            badgesHtml += `<g transform="translate(${currentX}, ${currentY})" ${animStyle}>${b.svg}</g>`;
+            
+            // ÇÖZÜM BURADA: Dış <g> konumu tutuyor, iç <g> animasyonu yapıyor!
+            badgesHtml += `
+            <g transform="translate(${currentX}, ${currentY})">
+                <g ${animStyle}>${b.svg}</g>
+            </g>`;
             currentX += b.width + 10;
             badgeIndex++;
         });
@@ -139,7 +145,6 @@ export default async function handler(req, res) {
             imagesHtml += `<g ${qrAnim}><image href="${qrBase64}" x="${cardWidth - 90}" y="${finalHeight - 90}" width="70" height="70" preserveAspectRatio="xMidYMid meet"/></g>`;
         }
 
-        // YENİ: CSS Animasyon Sınıfları (Keyframes)
         const animationCss = isAnimated ? `
             @keyframes slideUp {
                 from { opacity: 0; transform: translateY(15px); }
@@ -161,7 +166,6 @@ export default async function handler(req, res) {
         const titleClass = isAnimated ? "title anim-title" : "title";
         const descClass = isAnimated ? "desc anim-desc" : "desc";
         const lineClass = isAnimated ? "anim-line" : "";
-        const lineStyles = isAnimated ? `width="0"` : `width="${cardWidth}"`;
 
         const svg = `
         <svg width="${cardWidth}" height="${finalHeight}" viewBox="0 0 ${cardWidth} ${finalHeight}" fill="none" xmlns="http://www.w3.org/2000/svg">

@@ -3,9 +3,8 @@ export default async function handler(req, res) {
     const { 
         username, repo, theme = 'dark',
         bg, titleColor, textColor,
-        w = 450, h, // h girilmezse otomatik hesaplanacak
-        img, qr,
-        customBadges // Format: Etiket:Mesaj:Renk:İkon,Etiket:Mesaj:Renk:İkon
+        w = 450, h, 
+        img, qr, customBadges 
     } = req.query;
 
     if (!username || !repo) {
@@ -13,7 +12,18 @@ export default async function handler(req, res) {
         return res.status(400).send(`<svg width="450" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="450" height="150" fill="#f8d7da"/><text x="20" y="75" fill="#721c24" font-family="Arial" font-size="16">Hata: username ve repo eksik!</text></svg>`);
     }
 
-    // --- YARDIMCI FONKSİYON 1: Resimleri Base64'e çevir (Dış linkleri içe gömmek için) ---
+    // --- YARDIMCI FONKSİYON 1: XML/SVG Hatalarını Önlemek İçin Karakter Temizleyici ---
+    const escapeXML = (str) => {
+        if (!str) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;');
+    };
+
+    // --- YARDIMCI FONKSİYON 2: Resimleri Base64'e çevir ---
     const fetchBase64 = async (url) => {
         if (!url) return null;
         try {
@@ -28,7 +38,7 @@ export default async function handler(req, res) {
     };
 
     try {
-        // 2. Verileri Paralel Çek (GitHub Verisi + QR Kod + Özel Logo)
+        // 2. Verileri Paralel Çek
         const ghPromise = fetch(`https://api.github.com/repos/${username}/${repo}`, { headers: { 'User-Agent': 'Badges-App-Vercel' } }).then(r => r.ok ? r.json() : null);
         
         let qrData = '';
@@ -48,14 +58,17 @@ export default async function handler(req, res) {
         const tColor = titleColor ? `#${titleColor}` : (isDark ? '#58a6ff' : '#0969da');
         const pColor = textColor ? `#${textColor}` : (isDark ? '#8b949e' : '#57606a');
         
-        const desc = r.description ? (r.description.length > 55 ? r.description.substring(0, 55) + '...' : r.description) : 'Proje açıklaması bulunmuyor.';
+        // Açıklamayı kırp VE XML karakterlerinden temizle
+        const rawDesc = r.description ? (r.description.length > 55 ? r.description.substring(0, 55) + '...' : r.description) : 'Proje açıklaması bulunmuyor.';
+        const safeDesc = escapeXML(rawDesc);
+        const safeName = escapeXML(r.name);
 
-        // 4. Özel Rozetleri (Custom Badges) Shields.io'dan Çek
+        // 4. Özel Rozetleri Çek
         let externalBadges = [];
         if (customBadges) {
             const badgesArr = customBadges.split(',');
             const promises = badgesArr.map(async (b) => {
-                const parts = b.split(':'); // Etiket:Mesaj:Renk:İkon
+                const parts = b.split(':');
                 if (parts.length >= 2) {
                     const label = encodeURIComponent(parts[0]);
                     const message = encodeURIComponent(parts[1]);
@@ -68,10 +81,8 @@ export default async function handler(req, res) {
                     try {
                         const res = await fetch(url);
                         let svgText = await res.text();
-                        // İç içe SVG kullanımında sorun çıkmaması için gereksiz XML başlığını sil
                         svgText = svgText.replace(/<\?xml.*?\?>/g, '').trim();
                         
-                        // Rozetin orijinal genişliğini SVG kodundan yakala
                         const match = svgText.match(/width="([0-9.]+)"/);
                         const width = match ? parseFloat(match[1]) : 100;
                         return { svg: svgText, width };
@@ -82,22 +93,20 @@ export default async function handler(req, res) {
             externalBadges = (await Promise.all(promises)).filter(b => b !== null);
         }
 
-        // 5. Düzen Motoru (Auto-Layout Engine)
+        // 5. Düzen Motoru
         let currentX = 24;
         let currentY = 115;
         let cardWidth = parseInt(w) || 450;
         
-        // Eğer QR veya Logo varsa sağ tarafta onlara yer bırak (Metinler üstüne binmesin)
         const rightMargin = (img || qr) ? 100 : 24; 
         const maxLineWidth = cardWidth - rightMargin;
 
         let badgesHtml = '';
 
-        // İç İstatistik Rozetleri Çizici
         const addInternalBadge = (label, value, dotColor) => {
-            const text = `${label}: ${value}`;
-            const width = text.length * 7.5 + 24; 
-            if (currentX + width > maxLineWidth) { currentX = 24; currentY += 28; } // Sığmazsa alt satıra geç!
+            const safeText = escapeXML(`${label}: ${value}`);
+            const width = safeText.length * 7.5 + 24; 
+            if (currentX + width > maxLineWidth) { currentX = 24; currentY += 28; } 
             
             const badgeBg = isDark ? '#161b22' : '#f3f4f6';
             const badgeBorder = isDark ? '#30363d' : '#d1d5db';
@@ -105,29 +114,26 @@ export default async function handler(req, res) {
             <g transform="translate(${currentX}, ${currentY})">
                 <rect width="${width}" height="22" rx="4" fill="${badgeBg}" stroke="${badgeBorder}"/>
                 <circle cx="12" cy="11" r="4" fill="${dotColor}"/>
-                <text x="22" y="15" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="11" font-weight="600" fill="${pColor}">${text}</text>
+                <text x="22" y="15" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="11" font-weight="600" fill="${pColor}">${safeText}</text>
             </g>`;
             currentX += width + 10;
             badgesHtml += b;
         };
 
-        // GitHub Standart Rozetlerini Ekle
         if (r.language) addInternalBadge('Lang', r.language, '#f1e05a');
         addInternalBadge('Stars', r.stargazers_count, '#e3b341');
         if (r.forks_count > 0) addInternalBadge('Forks', r.forks_count, '#238636');
 
-        // Kullanıcının Özel (Shields.io) Rozetlerini Ekle
         externalBadges.forEach(b => {
-            if (currentX + b.width > maxLineWidth) { currentX = 24; currentY += 28; } // Sığmazsa alt satıra geç!
+            if (currentX + b.width > maxLineWidth) { currentX = 24; currentY += 28; }
             badgesHtml += `<g transform="translate(${currentX}, ${currentY})">${b.svg}</g>`;
             currentX += b.width + 10;
         });
 
-        // OTOMATİK YÜKSEKLİK (AUTO-HEIGHT) HESAPLAMASI
         let finalHeight = h ? parseInt(h) : (currentY + 35);
-        if (!h && (img || qr) && finalHeight < 150) finalHeight = 150; // Resim varsa çok basık olmasın
+        if (!h && (img || qr) && finalHeight < 150) finalHeight = 150;
 
-        // 6. Görselleri Konumlandırma
+        // 6. Görseller
         let imagesHtml = '';
         if (imgBase64) imagesHtml += `<image href="${imgBase64}" x="${cardWidth - 90}" y="20" width="70" height="70" preserveAspectRatio="xMidYMid meet"/>`;
         if (qrBase64) imagesHtml += `<image href="${qrBase64}" x="${cardWidth - 90}" y="${finalHeight - 90}" width="70" height="70" preserveAspectRatio="xMidYMid meet"/>`;
@@ -143,11 +149,10 @@ export default async function handler(req, res) {
             <rect x="0.5" y="0.5" width="${cardWidth - 1}" height="${finalHeight - 1}" rx="12" fill="${cardBg}" stroke="${borderColor}"/>
             <path d="M0 12C0 5.37258 5.37258 0 12 0H${cardWidth}C${cardWidth - 6.627} 0 ${cardWidth} 5.37258 ${cardWidth} 12V16H0V12Z" fill="${tColor}" opacity="0.8"/>
 
-            <text x="24" y="50" class="title">${r.name}</text>
-            <text x="24" y="80" class="desc">${desc}</text>
+            <text x="24" y="50" class="title">${safeName}</text>
+            <text x="24" y="80" class="desc">${safeDesc}</text>
             
             ${badgesHtml}
-            
             ${imagesHtml}
         </svg>`;
 

@@ -1,6 +1,4 @@
-const axios = require('axios');
-
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
     // 1. Parametreleri al
     const { username, repo, theme = 'dark' } = req.query;
 
@@ -11,14 +9,18 @@ module.exports = async (req, res) => {
     }
 
     try {
-        // 2. Axios ile GitHub'a güvenli istek at (User-Agent zorunlu!)
-        const response = await axios.get(`https://api.github.com/repos/${username}/${repo}`, {
+        // 2. Yerleşik fetch ile güvenli istek at (User-Agent zorunlu!)
+        const response = await fetch(`https://api.github.com/repos/${username}/${repo}`, {
             headers: {
-                'User-Agent': 'Badges-App-Vercel-Serverless' // GitHub bunu görmeden veri vermez!
+                'User-Agent': 'Badges-App-Vercel-Serverless'
             }
         });
         
-        const r = response.data;
+        if (!response.ok) {
+            throw new Error('GitHub API hatasi veya repo bulunamadi');
+        }
+        
+        const r = await response.json();
 
         // 3. Tema Renklerini Ayarla
         const isDark = theme === 'dark';
@@ -70,4 +72,4 @@ module.exports = async (req, res) => {
         res.setHeader('Content-Type', 'image/svg+xml');
         res.status(500).send(`<svg width="450" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="450" height="150" fill="#f8d7da"/><text x="20" y="75" fill="#721c24" font-family="Arial" font-size="16">API Hatasi: ${error.message}</text></svg>`);
     }
-};
+}

@@ -1,10 +1,10 @@
 export default async function handler(req, res) {
-    // 1. Tüm Parametreleri Al
     const { 
         username, repo, theme = 'dark',
         bg, titleColor, textColor,
         w = 450, h, 
-        img, qr, customBadges 
+        img, qr, customBadges,
+        animate // YENİ: Animasyon Parametresi!
     } = req.query;
 
     if (!username || !repo) {
@@ -12,18 +12,11 @@ export default async function handler(req, res) {
         return res.status(400).send(`<svg width="450" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="450" height="150" fill="#f8d7da"/><text x="20" y="75" fill="#721c24" font-family="Arial" font-size="16">Hata: username ve repo eksik!</text></svg>`);
     }
 
-    // --- YARDIMCI FONKSİYON 1: XML/SVG Hatalarını Önlemek İçin Karakter Temizleyici ---
     const escapeXML = (str) => {
         if (!str) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&apos;');
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
     };
 
-    // --- YARDIMCI FONKSİYON 2: Resimleri Base64'e çevir ---
     const fetchBase64 = async (url) => {
         if (!url) return null;
         try {
@@ -38,7 +31,6 @@ export default async function handler(req, res) {
     };
 
     try {
-        // 2. Verileri Paralel Çek
         const ghPromise = fetch(`https://api.github.com/repos/${username}/${repo}`, { headers: { 'User-Agent': 'Badges-App-Vercel' } }).then(r => r.ok ? r.json() : null);
         
         let qrData = '';
@@ -51,19 +43,16 @@ export default async function handler(req, res) {
         const [r, qrBase64, imgBase64] = await Promise.all([ghPromise, qrPromise, imgPromise]);
         if (!r) throw new Error('GitHub Reposu bulunamadi');
 
-        // 3. Tema ve Renkler
         const isDark = theme === 'dark';
         const cardBg = bg ? `#${bg}` : (isDark ? '#0d1117' : '#ffffff');
         const borderColor = isDark ? '#30363d' : '#e5e7eb';
         const tColor = titleColor ? `#${titleColor}` : (isDark ? '#58a6ff' : '#0969da');
         const pColor = textColor ? `#${textColor}` : (isDark ? '#8b949e' : '#57606a');
         
-        // Açıklamayı kırp VE XML karakterlerinden temizle
         const rawDesc = r.description ? (r.description.length > 55 ? r.description.substring(0, 55) + '...' : r.description) : 'Proje açıklaması bulunmuyor.';
         const safeDesc = escapeXML(rawDesc);
         const safeName = escapeXML(r.name);
 
-        // 4. Özel Rozetleri Çek
         let externalBadges = [];
         if (customBadges) {
             const badgesArr = customBadges.split(',');
@@ -82,7 +71,6 @@ export default async function handler(req, res) {
                         const res = await fetch(url);
                         let svgText = await res.text();
                         svgText = svgText.replace(/<\?xml.*?\?>/g, '').trim();
-                        
                         const match = svgText.match(/width="([0-9.]+)"/);
                         const width = match ? parseFloat(match[1]) : 100;
                         return { svg: svgText, width };
@@ -93,15 +81,16 @@ export default async function handler(req, res) {
             externalBadges = (await Promise.all(promises)).filter(b => b !== null);
         }
 
-        // 5. Düzen Motoru
         let currentX = 24;
         let currentY = 115;
         let cardWidth = parseInt(w) || 450;
-        
         const rightMargin = (img || qr) ? 100 : 24; 
         const maxLineWidth = cardWidth - rightMargin;
-
         let badgesHtml = '';
+        
+        // YENİ: Animasyon sırası (Stagger effect) için sayaç
+        let badgeIndex = 0; 
+        const isAnimated = animate === 'true';
 
         const addInternalBadge = (label, value, dotColor) => {
             const safeText = escapeXML(`${label}: ${value}`);
@@ -110,14 +99,19 @@ export default async function handler(req, res) {
             
             const badgeBg = isDark ? '#161b22' : '#f3f4f6';
             const badgeBorder = isDark ? '#30363d' : '#d1d5db';
+            
+            // Animasyon gecikmesini hesapla (0.4s'den başlar, her rozet için 0.1s artar)
+            const animStyle = isAnimated ? `style="opacity: 0; animation: slideUp 0.6s ease-out forwards; animation-delay: ${0.4 + (badgeIndex * 0.1)}s;"` : '';
+            
             const b = `
-            <g transform="translate(${currentX}, ${currentY})">
+            <g transform="translate(${currentX}, ${currentY})" ${animStyle}>
                 <rect width="${width}" height="22" rx="4" fill="${badgeBg}" stroke="${badgeBorder}"/>
                 <circle cx="12" cy="11" r="4" fill="${dotColor}"/>
                 <text x="22" y="15" font-family="-apple-system, BlinkMacSystemFont, Arial, sans-serif" font-size="11" font-weight="600" fill="${pColor}">${safeText}</text>
             </g>`;
             currentX += width + 10;
             badgesHtml += b;
+            badgeIndex++;
         };
 
         if (r.language) addInternalBadge('Lang', r.language, '#f1e05a');
@@ -126,31 +120,63 @@ export default async function handler(req, res) {
 
         externalBadges.forEach(b => {
             if (currentX + b.width > maxLineWidth) { currentX = 24; currentY += 28; }
-            badgesHtml += `<g transform="translate(${currentX}, ${currentY})">${b.svg}</g>`;
+            const animStyle = isAnimated ? `style="opacity: 0; animation: slideUp 0.6s ease-out forwards; animation-delay: ${0.4 + (badgeIndex * 0.1)}s;"` : '';
+            badgesHtml += `<g transform="translate(${currentX}, ${currentY})" ${animStyle}>${b.svg}</g>`;
             currentX += b.width + 10;
+            badgeIndex++;
         });
 
         let finalHeight = h ? parseInt(h) : (currentY + 35);
         if (!h && (img || qr) && finalHeight < 150) finalHeight = 150;
 
-        // 6. Görseller
         let imagesHtml = '';
-        if (imgBase64) imagesHtml += `<image href="${imgBase64}" x="${cardWidth - 90}" y="20" width="70" height="70" preserveAspectRatio="xMidYMid meet"/>`;
-        if (qrBase64) imagesHtml += `<image href="${qrBase64}" x="${cardWidth - 90}" y="${finalHeight - 90}" width="70" height="70" preserveAspectRatio="xMidYMid meet"/>`;
+        if (imgBase64) {
+            const imgAnim = isAnimated ? `style="opacity: 0; animation: fadeIn 1s ease-out forwards; animation-delay: 0.2s;"` : '';
+            imagesHtml += `<g ${imgAnim}><image href="${imgBase64}" x="${cardWidth - 90}" y="20" width="70" height="70" preserveAspectRatio="xMidYMid meet"/></g>`;
+        }
+        if (qrBase64) {
+            const qrAnim = isAnimated ? `style="opacity: 0; animation: fadeIn 1s ease-out forwards; animation-delay: 0.5s;"` : '';
+            imagesHtml += `<g ${qrAnim}><image href="${qrBase64}" x="${cardWidth - 90}" y="${finalHeight - 90}" width="70" height="70" preserveAspectRatio="xMidYMid meet"/></g>`;
+        }
 
-        // 7. Nihai SVG
+        // YENİ: CSS Animasyon Sınıfları (Keyframes)
+        const animationCss = isAnimated ? `
+            @keyframes slideUp {
+                from { opacity: 0; transform: translateY(15px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes fadeIn {
+                from { opacity: 0; }
+                to { opacity: 1; }
+            }
+            @keyframes expandWidth {
+                from { width: 0; opacity: 0; }
+                to { width: ${cardWidth}px; opacity: 0.8; }
+            }
+            .anim-title { opacity: 0; animation: slideUp 0.6s ease-out forwards; animation-delay: 0.1s; }
+            .anim-desc { opacity: 0; animation: slideUp 0.6s ease-out forwards; animation-delay: 0.2s; }
+            .anim-line { animation: expandWidth 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards; }
+        ` : '';
+
+        const titleClass = isAnimated ? "title anim-title" : "title";
+        const descClass = isAnimated ? "desc anim-desc" : "desc";
+        const lineClass = isAnimated ? "anim-line" : "";
+        const lineStyles = isAnimated ? `width="0"` : `width="${cardWidth}"`;
+
         const svg = `
         <svg width="${cardWidth}" height="${finalHeight}" viewBox="0 0 ${cardWidth} ${finalHeight}" fill="none" xmlns="http://www.w3.org/2000/svg">
             <style>
                 .title { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 700; font-size: 20px; fill: ${tColor}; }
                 .desc { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; font-weight: 400; font-size: 13px; fill: ${pColor}; }
+                ${animationCss}
             </style>
             
             <rect x="0.5" y="0.5" width="${cardWidth - 1}" height="${finalHeight - 1}" rx="12" fill="${cardBg}" stroke="${borderColor}"/>
-            <path d="M0 12C0 5.37258 5.37258 0 12 0H${cardWidth}C${cardWidth - 6.627} 0 ${cardWidth} 5.37258 ${cardWidth} 12V16H0V12Z" fill="${tColor}" opacity="0.8"/>
+            
+            <path class="${lineClass}" d="M0 12C0 5.37258 5.37258 0 12 0H${cardWidth}C${cardWidth - 6.627} 0 ${cardWidth} 5.37258 ${cardWidth} 12V16H0V12Z" fill="${tColor}" opacity="0.8"/>
 
-            <text x="24" y="50" class="title">${safeName}</text>
-            <text x="24" y="80" class="desc">${safeDesc}</text>
+            <text x="24" y="50" class="${titleClass}">${safeName}</text>
+            <text x="24" y="80" class="${descClass}">${safeDesc}</text>
             
             ${badgesHtml}
             ${imagesHtml}

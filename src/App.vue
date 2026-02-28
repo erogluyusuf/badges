@@ -469,4 +469,4 @@ const downloadImage = async () => {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: #262626; border-radius: 10px; }
 .animate-fade-in { animation: fadeIn 0.3s ease-in-out; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-</style>
+</style> 

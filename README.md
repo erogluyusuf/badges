@@ -9,7 +9,7 @@
   </p>
 
   <a href="https://badges-jet.vercel.app/">
-    <img src="https://badges-jet.vercel.app/api/card?username=erogluyusuf&repo=badges&theme=dark&qr=true&customBadges=Framework:Vue%203:42b883:vuedotjs,API:Serverless:000000:vercel,Styling:Tailwind:06b6d4:tailwindcss" alt="Badges Project Card">
+    <img src="https://badges-jet.vercel.app/api/card?username=erogluyusuf&repo=badges&theme=dark&qr=true&animate=true&customBadges=Framework:Vue%203:42b883:vuedotjs,API:Serverless:000000:vercel,Styling:Tailwind:06b6d4:tailwindcss" alt="Badges Project Card">
   </a>
 
   <br><br>
@@ -58,6 +58,7 @@ You can fully customize your card by appending these query parameters to the URL
 | `img` | `string` | URL to a custom logo to display in the top-right corner. | `img=https://.../logo.png` |
 | `qr` | `string` | Displays a QR code in the bottom-right. Set to `true` for the repo URL, or provide a custom link. | `qr=true` OR `qr=https://ulak.app` |
 | `customBadges`| `string` | Comma-separated list of custom badges. <br>**Format:** `Label:Message:HexColor:IconSlug` | `customBadges=Vue:3:42b883:vuedotjs` |
+| `animate` | `boolean` | Set to true to enable smooth CSS entry animations for the card. | `animate=true` |
 
 *(Note: For the `IconSlug`, you can find the exact names on [SimpleIcons](https://simpleicons.org/). For example, `vuedotjs`, `tailwindcss`, `nodedotjs`, `mongodb`.)*
 

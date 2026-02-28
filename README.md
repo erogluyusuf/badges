@@ -25,23 +25,23 @@ This project provides two powerful ways to create beautiful repository cards:
 1. **[Web UI (Client-Side)](#)**: Use the visual builder in your browser to design your card, customize colors, adjust image positioning, and download it as a static PNG.
 2. **Serverless API (Dynamic SVG)**: Embed a single URL in your markdown file to fetch live GitHub statistics. It bypasses GitHub's strict Camo proxy by downloading external images and shields in the background, embedding them directly as Base64 within a pure SVG!
 
-### 🔥 Advanced API Features
-* 🛡️ **Custom Badges:** Seamless Shields.io integration. Add any framework, language, or tool icon.
-* 📐 **Auto-Layout & Auto-Height:** Add as many badges as you want. The API automatically wraps them to the next line and expands the card height so your design never breaks.
-* 🖼️ **Custom Logo Support:** Pin your project's logo to the top right corner. (Automatically converts GitHub `blob` links to `raw` links).
-* 📱 **QR Code Generator:** Instantly generate and embed a QR code pointing to your repo or any custom URL.
-* 🎨 **Full Color Control:** Choose between pre-set Light/Dark themes, or override everything with custom HEX codes.
+###  Advanced API Features
+*  **Custom Badges:** Seamless Shields.io integration. Add any framework, language, or tool icon.
+*  **Auto-Layout & Auto-Height:** Add as many badges as you want. The API automatically wraps them to the next line and expands the card height so your design never breaks.
+*  **Custom Logo Support:** Pin your project's logo to the top right corner. (Automatically converts GitHub `blob` links to `raw` links).
+*  **QR Code Generator:** Instantly generate and embed a QR code pointing to your repo or any custom URL.
+*  **Full Color Control:** Choose between pre-set Light/Dark themes, or override everything with custom HEX codes.
 
 ---
 
-## 🛠️ API Documentation
+##  API Documentation
 
 To use the dynamic SVG in your GitHub `README.md`, simply use an `<img>` tag pointing to your Vercel API endpoint.
 
 ```markdown
 <img src="[https://badges-jet.vercel.app/api/card?username=YOUR_USERNAME&repo=YOUR_REPO](https://badges-jet.vercel.app/api/card?username=YOUR_USERNAME&repo=YOUR_REPO)">
 ```
-### ⚙️ URL Parameters
+###  URL Parameters
 
 You can fully customize your card by appending these query parameters to the URL:
 
@@ -61,14 +61,14 @@ You can fully customize your card by appending these query parameters to the URL
 
 *(Note: For the `IconSlug`, you can find the exact names on [SimpleIcons](https://simpleicons.org/). For example, `vuedotjs`, `tailwindcss`, `nodedotjs`, `mongodb`.)*
 
-### 💡 Advanced Usage Example
+###  Advanced Usage Example
 
 Want to create a massive, customized card with a specific background, a custom logo, a QR code pointing to a website, and multiple framework badges? 
 
 ```html
 <img src="[https://badges-jet.vercel.app/api/card?username=erogluyusuf&repo=ulak&bg=111111&w=550&qr=https://erogluyusuf.com&img=https://github.com/erogluyusuf/ulak/raw/main/docs/assets/logo-unbg.png&customBadges=Framework:Vue:42b883:vuedotjs,Styling:Tailwind:06b6d4:tailwindcss,DB:MongoDB:47A248:mongodb](https://badges-jet.vercel.app/api/card?username=erogluyusuf&repo=ulak&bg=111111&w=550&qr=https://erogluyusuf.com&img=https://github.com/erogluyusuf/ulak/raw/main/docs/assets/logo-unbg.png&customBadges=Framework:Vue:42b883:vuedotjs,Styling:Tailwind:06b6d4:tailwindcss,DB:MongoDB:47A248:mongodb)">
 ```
-## 💻 Local Development
+##  Local Development
 
 This project is built with **Vue 3**, **TypeScript**, and **Vite**. 
 

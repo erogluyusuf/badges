@@ -22,6 +22,7 @@ const selectedRepoIndex = ref<number | ''>('');
 const loading = ref(false);
 const downloading = ref(false);
 const copied = ref(false);
+const embedMode = ref<'api' | 'static'>('api'); // YENİ: Kod sekmesi (Live API vs Static PNG)
 
 const avatarUrl = ref('');
 const imageSource = ref('opengraph');
@@ -45,12 +46,12 @@ const resetImageSettings = () => {
   imgPosY.value = 50;
 };
 
-// CUSTOM BADGE STATE
+// CUSTOM BADGE STATE - YENİ: API için tüm verileri saklıyoruz
 const customBadgeLabel = ref('');
 const customBadgeMessage = ref('');
 const customBadgeColor = ref('#3b82f6'); 
 const customBadgeLogo = ref('');
-const customBadgesList = ref<{id: number, url: string, label: string}[]>([]);
+const customBadgesList = ref<{id: number, url: string, label: string, message: string, color: string, logo: string}[]>([]);
 
 const config = ref({
   title: '',
@@ -136,7 +137,6 @@ const fetchRepoImages = async (repo: GithubRepo) => {
         url: `https://raw.githubusercontent.com/${username.value}/${repo.name}/${branch}/${img.path}`
       }));
       
-      // ÇÖZÜM BURADA: TS'i rahatlatmak için dizinin 0. elemanı gerçekten var mı diye if ile güvene aldık
       if (repoImages.value.length > 0 && repoImages.value[0]) {
         selectedRepoImage.value = repoImages.value[0].url;
       }
@@ -184,9 +184,20 @@ const addCustomBadge = () => {
   const label = encodeURIComponent(customBadgeLabel.value);
   const message = encodeURIComponent(customBadgeMessage.value);
   const color = customBadgeColor.value.replace('#', '');
+  
   let url = `https://img.shields.io/badge/${label}-${message}-${color}?style=flat-square`;
   if (customBadgeLogo.value) url += `&logo=${encodeURIComponent(customBadgeLogo.value)}&logoColor=white`;
-  customBadgesList.value.push({ id: Date.now(), url, label: customBadgeLabel.value });
+  
+  // YENİ: Artık mesaj, renk ve logoyu da ayrı ayrı kaydediyoruz ki API linkine basabilelim
+  customBadgesList.value.push({ 
+      id: Date.now(), 
+      url, 
+      label: customBadgeLabel.value,
+      message: customBadgeMessage.value,
+      color: color,
+      logo: customBadgeLogo.value
+  });
+  
   customBadgeLabel.value = ''; customBadgeMessage.value = ''; customBadgeLogo.value = '';
 };
 
@@ -213,10 +224,50 @@ const activeBadges = computed(() => {
   return badges;
 });
 
+// YENİ: Arayüzdeki seçimleri alıp dinamik olarak o mükemmel API URL'sini oluşturan motor
+const generatedApiUrl = computed(() => {
+    if (!selectedRepo.value) return '';
+    const params = new URLSearchParams();
+    
+    params.append('username', username.value);
+    params.append('repo', selectedRepo.value.name);
+    
+    // Renkleri aktar (Varsayılan beyaz/koyu renk değilse ekle)
+    if (config.value.cardBg !== '#ffffff') params.append('bg', config.value.cardBg.replace('#', ''));
+    if (config.value.cardText !== '#1f2937') {
+        params.append('titleColor', config.value.cardText.replace('#', ''));
+        params.append('textColor', config.value.cardText.replace('#', ''));
+    }
+    
+    // Genişlik ve QR
+    if (config.value.cardWidth !== 450) params.append('w', config.value.cardWidth.toString());
+    if (config.value.showQRCode) params.append('qr', 'true');
+    
+    // Resmi bul ve aktar
+    if (imageSource.value === 'custom' && customImageUrl.value) params.append('img', customImageUrl.value);
+    else if (imageSource.value === 'repo' && selectedRepoImage.value) params.append('img', selectedRepoImage.value);
+    else if (imageSource.value === 'avatar' && avatarUrl.value) params.append('img', avatarUrl.value);
+    else if (imageSource.value === 'opengraph') params.append('img', `https://opengraph.githubassets.com/1/${username.value}/${selectedRepo.value.name}`);
+
+    // Özel Rozetleri aktar
+    if (customBadgesList.value.length > 0) {
+        const badgesStr = customBadgesList.value.map(b => `${b.label}:${b.message}:${b.color}:${b.logo}`).join(',');
+        params.append('customBadges', badgesStr);
+    }
+    
+    // Çıktıyı alırken Vercel sunucunun adresini ekle (url'deki %20 gibi boşlukları güzelleştirmek için string replace yapılabilir ama URLSearchParams en güvenlisi)
+    return `https://badges-jet.vercel.app/api/card?${params.toString()}`;
+});
+
 const outputCode = computed(() => {
   const repo = selectedRepo.value;
   if (!repo) return '';
-  return `\n<div align="center">\n  <a href="${repo.html_url}">\n    <img src="./${repo.name}-card.png" alt="${repo.name} Card" width="${config.value.cardWidth}">\n  </a>\n</div>`;
+  
+  if (embedMode.value === 'api') {
+      return `\n<div align="center">\n  <a href="${repo.html_url}">\n    <img src="${generatedApiUrl.value}" alt="${repo.name} Card">\n  </a>\n</div>`;
+  } else {
+      return `\n<div align="center">\n  <a href="${repo.html_url}">\n    <img src="./${repo.name}-card.png" alt="${repo.name} Card" width="${config.value.cardWidth}">\n  </a>\n</div>`;
+  }
 });
 
 const copy = () => {
@@ -457,7 +508,13 @@ const downloadImage = async () => {
         <div v-if="selectedRepo" class="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 relative">
           <div class="flex justify-between items-center mb-3 text-sm font-bold text-neutral-500 uppercase tracking-widest">
             <h2>README Embed Code</h2>
-            <button @click="copy" class="text-xs text-blue-500 bg-blue-500/10 px-3 py-1 rounded hover:bg-blue-500/20">{{ copied ? 'COPIED!' : 'COPY' }}</button>
+            <div class="flex items-center gap-2">
+              <div class="bg-neutral-950 rounded-lg p-1 border border-neutral-800 flex">
+                <button @click="embedMode = 'api'" :class="embedMode === 'api' ? 'bg-blue-600 text-white' : 'text-neutral-500 hover:text-white'" class="px-3 py-1 text-[10px] font-bold rounded">Live API</button>
+                <button @click="embedMode = 'static'" :class="embedMode === 'static' ? 'bg-blue-600 text-white' : 'text-neutral-500 hover:text-white'" class="px-3 py-1 text-[10px] font-bold rounded">Static PNG</button>
+              </div>
+              <button @click="copy" class="text-[10px] text-blue-500 bg-blue-500/10 font-bold px-3 py-1.5 rounded hover:bg-blue-500/20">{{ copied ? 'COPIED!' : 'COPY' }}</button>
+            </div>
           </div>
           <pre class="bg-neutral-950 p-4 rounded-lg text-xs text-blue-400 font-mono overflow-x-auto border border-neutral-800">{{ outputCode }}</pre>
         </div>

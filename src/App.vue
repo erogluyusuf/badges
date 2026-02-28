@@ -155,7 +155,6 @@ const handleRepoSelect = () => {
   }
 };
 
-// Extracted image styling logic with strict CSSProperties typing
 const coverImageStyle = computed<CSSProperties>(() => ({
   width: `${imgScale.value * 100}%`,
   height: `${imgScale.value * 100}%`,

@@ -1,34 +1,38 @@
+const axios = require('axios');
+
 module.exports = async (req, res) => {
-    // 1. Kullanıcıdan gelen parametreleri al
+    // 1. Parametreleri al
     const { username, repo, theme = 'dark' } = req.query;
 
-    // Gerekli parametreler yoksa hata döndür
+    // Parametre yoksa uyarı SVG'si gönder
     if (!username || !repo) {
         res.setHeader('Content-Type', 'image/svg+xml');
-        return res.send(`<svg width="450" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="450" height="150" fill="#f8d7da"/><text x="20" y="75" fill="#721c24" font-family="Arial" font-size="16">Hata: username ve repo parametreleri zorunludur!</text></svg>`);
+        return res.status(400).send(`<svg width="450" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="450" height="150" fill="#f8d7da"/><text x="20" y="75" fill="#721c24" font-family="Arial" font-size="16">Hata: username ve repo parametreleri eksik!</text></svg>`);
     }
 
     try {
-        // 2. GitHub API'sinden güncel repo verilerini çek (Yerleşik fetch kullanarak)
-        const response = await fetch(`https://api.github.com/repos/${username}/${repo}`);
-        if (!response.ok) throw new Error('Repo bulunamadı');
-        const r = await response.json();
+        // 2. Axios ile GitHub'a güvenli istek at (User-Agent zorunlu!)
+        const response = await axios.get(`https://api.github.com/repos/${username}/${repo}`, {
+            headers: {
+                'User-Agent': 'Badges-App-Vercel-Serverless' // GitHub bunu görmeden veri vermez!
+            }
+        });
+        
+        const r = response.data;
 
         // 3. Tema Renklerini Ayarla
         const isDark = theme === 'dark';
-        const cardBg = isDark ? '#0d1117' : '#ffffff'; // GitHub Koyu/Açık teması
+        const cardBg = isDark ? '#0d1117' : '#ffffff';
         const borderColor = isDark ? '#30363d' : '#e5e7eb';
         const titleColor = isDark ? '#58a6ff' : '#0969da';
         const textColor = isDark ? '#8b949e' : '#57606a';
         const iconColor = isDark ? '#8b949e' : '#57606a';
 
-        // Açıklamayı (Description) çok uzunsa kırp
+        // Açıklama çok uzunsa kırp
         const desc = r.description ? (r.description.length > 55 ? r.description.substring(0, 55) + '...' : r.description) : 'Açıklama bulunmuyor.';
-        
-        // Dil yoksa varsayılan metin
         const lang = r.language || 'Unknown';
 
-        // 4. Saf SVG Şablonu (Dış bağlantı içermez, Camo'da %100 çalışır)
+        // 4. Saf SVG Şablonu
         const svg = `
         <svg width="450" height="160" viewBox="0 0 450 160" fill="none" xmlns="http://www.w3.org/2000/svg">
             <style>
@@ -38,9 +42,7 @@ module.exports = async (req, res) => {
             </style>
             
             <rect x="0.5" y="0.5" width="449" height="159" rx="10" fill="${cardBg}" stroke="${borderColor}"/>
-            
             <text x="24" y="42" class="title">${r.name}</text>
-            
             <text x="24" y="75" class="desc">${desc}</text>
             
             <g transform="translate(24, 120)">
@@ -59,15 +61,13 @@ module.exports = async (req, res) => {
             </g>
         </svg>`;
 
-        // 5. Yanıt Başlıklarını Ayarla (Çok Önemli!)
+        // 5. Başlıkları Ayarla
         res.setHeader('Content-Type', 'image/svg+xml');
-        res.setHeader('Cache-Control', 'public, max-age=7200, s-maxage=7200'); // GitHub'ın her 2 saatte bir güncellenmesini sağlar
-        
-        res.send(svg);
+        res.setHeader('Cache-Control', 'public, max-age=7200, s-maxage=7200');
+        res.status(200).send(svg);
 
     } catch (error) {
-        // Hata durumunda SVG olarak hata mesajı döndür
         res.setHeader('Content-Type', 'image/svg+xml');
-        res.send(`<svg width="450" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="450" height="150" fill="#f8d7da"/><text x="20" y="75" fill="#721c24" font-family="Arial" font-size="16">API Hatası: Proje bulunamadı!</text></svg>`);
+        res.status(500).send(`<svg width="450" height="150" xmlns="http://www.w3.org/2000/svg"><rect width="450" height="150" fill="#f8d7da"/><text x="20" y="75" fill="#721c24" font-family="Arial" font-size="16">API Hatasi: ${error.message}</text></svg>`);
     }
 };

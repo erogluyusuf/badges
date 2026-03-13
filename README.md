@@ -1,7 +1,7 @@
 <div align="center">
   <img src="public/logo.png" alt="Badges Logo" width="120">
 
-  <h1>🚀 Badges for GitHub</h1>
+  <h1>🚀 Badges for GitHub</h1> 
 
   <p>
     <b>Generate dynamic, customizable, and live SVG preview cards for your GitHub projects!</b><br>

@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/logo.png" alt="Badges Logo" width="120">  
+  <img src="public/logo.png" alt="Badges Logo" width="120">   
 
   <h1>🚀 Badges for GitHub</h1> 
 

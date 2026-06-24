@@ -6,7 +6,7 @@
   <p>
     <b>Generate dynamic, customizable, and live SVG preview cards for your GitHub projects!</b><br>
     Embed your own logos, add custom Shields.io badges, and auto-generate QR codes—all rendering perfectly on GitHub READMEs.
-  </p>
+  </p> 
 
   <a href="https://badges-jet.vercel.app/">
     <img src="https://badges-jet.vercel.app/api/card?username=erogluyusuf&repo=badges&theme=dark&qr=true&animate=true&customBadges=Framework:Vue%203:42b883:vuedotjs,API:Serverless:000000:vercel,Styling:Tailwind:06b6d4:tailwindcss" alt="Badges Project Card">
